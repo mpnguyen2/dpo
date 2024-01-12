@@ -1,0 +1,5 @@
+env_name,hnet_rate,mem_capacity,num_warmup_sample,sample_size,sample_step_size,sample_rate,lr,batch_size,log_interval
+cartpole,3.00E-03,1.00E+07,256,64,1.00E-02,20,1.00E-03,32,500
+shape,3.00E-03,1.00E+07,5000,16,1.00E-03,40,1.00E-03,128,500
+shape_boundary,3.00E-03,1.00E+07,5000,16,1.00E-03,40,1.00E-03,128,500
+molecule,3.00E-03,1.00E+07,256,64,1.00E-02,20,1.00E-03,32,500

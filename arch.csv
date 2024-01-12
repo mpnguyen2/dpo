@@ -1,0 +1,4 @@
+env_name,q_dim,derivative_dims,objective_dims
+shape,64,"[128, 256, 512, 256]","[[128, 64],[128,64]]"
+shape_boundary,16,"[32, 64, 128, 64]","[[64, 16],[64, 16]]"
+molecule,16,"[32, 64, 128, 64]","[[64, 16]]"
