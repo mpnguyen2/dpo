@@ -3,12 +3,12 @@ import pandas as pd
 import torch
 from stable_baselines3 import PPO, SAC
 from sb3_contrib import TRPO
-from utils import get_environment, str_to_list, DEVICE
 
 # current directory
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 # path to main repo (locally)
 sys.path.append(os.path.dirname(cur_dir))
+from utils import get_environment, str_to_list, DEVICE
 
 def get_RL_nets_architectures(env_name, on_policy=True):
     # Get architecture info from arch_file
