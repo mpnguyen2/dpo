@@ -133,5 +133,11 @@ dmypy.json
 *.mp4
 *.png
 
+# Save data
+*.npy
+
+# Logging and models
 models/
 benchmarks/models/
+benchmarks/logs/
+logs/

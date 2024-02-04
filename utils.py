@@ -1,30 +1,31 @@
-import numpy as np
 import pandas as pd
-import cv2 
 import torch
+import pyrosetta
+from envs import ShapeBoundary, Shape, Molecule
+from common_nets import Mlp
+from policy import Policy
 
 # Default device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Get correct environment
 def get_environment(env_name):
-    if env_name == 'cartpole':
-        from envs.classical_controls import CartPole
-        return CartPole()
+    if env_name == 'naive_shape_boundary':
+        return ShapeBoundary(naive=True)
     if env_name == 'shape_boundary':
-        from envs.shape import ShapeBoundary
         return ShapeBoundary()
+    if env_name == 'naive_shape':
+        return Shape(naive=True)
     if env_name == 'shape':
-        from envs.shape import Shape
         return Shape()
+    pose = pyrosetta.pose_from_sequence('A'*8)
+    # ('TTCCPSIVARSNFNVCRLPGTSEAICATYTGCIIIPGATCPGDYAN')
+    # pyrosetta.pose_from_pdb("molecule_files/1AB1.pdb") #pyrosetta.pose_from_sequence('A' * 10)
+    if env_name == 'naive_molecule':
+        return Molecule(pose=pose, naive=True)
     if env_name == 'molecule':
-        from envs.molecule import MoleculeEnv
-        import pyrosetta
-        pose = pyrosetta.pose_from_sequence('A'*8)
-        # ('TTCCPSIVARSNFNVCRLPGTSEAICATYTGCIIIPGATCPGDYAN')
-        # pyrosetta.pose_from_pdb("molecule_files/1AB1.pdb") #pyrosetta.pose_from_sequence('A' * 10)
-        return MoleculeEnv(pose=pose)
-    
+        return Molecule(pose=pose)
+
 def from_str_to_2D_arr(s):
     tokens = s[2:-2].split("],[")
     ans = []
@@ -36,7 +37,7 @@ def from_str_to_2D_arr(s):
         ans.append(arr)
     return ans
 
-def from_str_to_1D_arr(s):
+def str_to_list(s):
     tokens = s[1:-1].split(",")
     ans = []
     for token in tokens:
@@ -44,14 +45,16 @@ def from_str_to_1D_arr(s):
     return ans
 
 # Get neural net architecture
-def get_architectures(env_name, arch_file='arch.csv'):
+def get_architectures(env_name, zero_order, arch_file='arch.csv'):
     # Get architecture info from arch_file
     df = pd.read_csv(arch_file)
     net_info = df[df['env_name']==env_name]
-    obj_dims_arr = from_str_to_2D_arr(net_info['objective_dims'].values[0])
-    derivative_dims_arr = from_str_to_1D_arr(net_info['derivative_dims'].values[0])
-    
-    return obj_dims_arr, len(obj_dims_arr), derivative_dims_arr
+    if zero_order:
+        layer_dims = str_to_list(net_info['derivative_layer_dims'].values[0])
+    else:
+        layer_dims = str_to_list(net_info['val_layer_dims'].values[0])
+
+    return layer_dims
 
 # Get predefined training parameters from file for a specific environment. 
 def get_train_params(env_name, param_file='params.csv'):
@@ -59,21 +62,14 @@ def get_train_params(env_name, param_file='params.csv'):
     df = pd.read_csv(param_file)
     info = df[df['env_name']==env_name]
 
-    # Hnet parameters (similar to discounted rate concept)
-    rate = float(info['hnet_rate'].values[0])
+    # Rate underlying hamiltonian dynamics formula.
+    rate = float(info['rate'].values[0])
 
-    # Sampling params starting with replay memory size & number of samples in warming up step.
-    mem_capacity = int(info['mem_capacity'].values[0])
-    num_warmup_sample = int(info['num_warmup_sample'].values[0])
-
-    # Number of trajectories per sampling step
-    sample_size = int(info['sample_size'].values[0])
+    # Number of trajectories per stage
+    num_traj = int(info['num_traj'].values[0])
     
-    # Discrete step size for discrete trajectories sampled.
-    sample_step_size = float(info['sample_step_size'].values[0])
-    
-    # Sampling rate, which determine subset of points to be sampled on each trajectory.
-    sample_rate = int(info['sample_rate'].values[0])
+    # Step size for discretized ODE
+    step_size = float(info['step_size'].values[0])
     
     # Optimization params: learning rate, batch size, how often logging
     # and number of optimization steps per each sampling stage.
@@ -81,35 +77,28 @@ def get_train_params(env_name, param_file='params.csv'):
     batch_size = int(info['batch_size'].values[0])
     log_interval = int(info['log_interval'].values[0])
 
-    return rate, mem_capacity, num_warmup_sample,\
-        sample_size, sample_step_size, sample_rate,\
-        lr, batch_size, log_interval
+    return rate, num_traj, step_size, lr, batch_size, log_interval
 
-
-# Show image from numpy q data.
-def display(env_name, input_file='output/optimal_traj_numpy/', 
-            output_file='output/videos/test.wmv'):
-    # Initialize environment
-    env = get_environment(env_name) 
-    isColor = True
-    if env_name == 'shape':
-        isColor = False
-    if env_name != 'shape':
-        env.render(np.zeros(env.q_dim))
-    input_file += env_name + '.npy'
-
-    # Setup video writer
-    fourcc = cv2.VideoWriter_fourcc(*'WMV1')
-    out = cv2.VideoWriter(output_file, fourcc, 20.0, (env.viewer.width, env.viewer.height), isColor=isColor)
-
-    # Load numpy file
-    qs = np.load(input_file)
+def setup_main_net(env_name, zero_order, state_dim):
+    layer_dims = get_architectures(env_name, zero_order)
+    if zero_order:
+        output_dim = 1
+    else:
+        output_dim = state_dim
+    main_net = Mlp(input_dim=state_dim, output_dim=output_dim, 
+                    layer_dims=layer_dims, activation='relu').to(DEVICE)
     
-    # Write rendering image
-    for i in range(qs.shape[0]):
-        out.write(env.render(qs[i].reshape(-1)))
-    
-    # Release video
-    out.release()
-    env.close()
-    print('\nDone displaying the optimal trajectory!')
+    return main_net
+
+
+def setup_ocf_model(env, env_name, ocf_method):
+    rate, _, step_size, _, _, _ = get_train_params(env_name)
+    zero_order = ocf_method.endswith('zero_order')
+    state_dim = env.state_dim
+    main_net = setup_main_net(env_name, zero_order, state_dim)
+    path = 'models/' + env_name + '_' + ocf_method + '.pth'
+    main_net.load_state_dict(torch.load(path))
+    main_net.to(DEVICE)
+    model = Policy(zero_order, main_net, rate, step_size)
+
+    return model

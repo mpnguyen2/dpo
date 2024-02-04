@@ -1,140 +1,123 @@
 import numpy as np
-import cv2
-
-from shapely.geometry import Polygon
-from scipy.interpolate import CubicSpline
 from scipy import interpolate
+import cv2
+from typing import Optional
 
-from envs.continuous_env import ContinuousEnv   
+import gymnasium as gym
+from gymnasium import spaces
 
 from collections import namedtuple
 ImgDim = namedtuple('ImgDim', 'width height')
-EPS = 1e-18
 
-# Environment for optimizing shape with boundary parametrization.
-class ShapeBoundary(ContinuousEnv):
-    def __init__(self, q_dim=16):
-        super().__init__(q_dim, num_comp=2)
-        self.num_coef = q_dim//2
-        self.ts = np.linspace(0, 1, 80)
-        self.viewer = None
-    
-    # Get objective components including area and length of shapes.
-    def obj_comps(self, q):
-        ans = np.zeros((q.shape[0], 2))
-        for i in range(q.shape[0]):
-            cs = CubicSpline(np.linspace(0,1,self.num_coef), q[i].reshape(2, self.num_coef).T)
-            coords = cs(self.ts)
-            polygon = Polygon(zip(coords[:,0], coords[:,1]))
-            ans[i, 0] = polygon.length
-            ans[i, 1] = polygon.area
-        return ans
+class Shape(gym.Env):
+    metadata = {'render.modes': ['human']}
 
-    # Get objective peri-area ratio
-    def obj(self, q):
-        comps = self.obj_comps(q)
-        peris = comps[:, 0]; areas = comps[:, 1] 
-        ret = np.zeros(q.shape[0])
-        for i in range(q.shape[0]):
-            ret[i] = peris[i]/(np.sqrt(areas[i]) + EPS)
-        
-        return ret
-          
-    def sample_q(self, num_examples, mode='random'):
-        qs = np.zeros((num_examples, self.q_dim))
-        q = np.zeros(self.q_dim)
-        for i in range(num_examples):
-            if mode == 'ellipse':
-                t = np.arange(self.num_coef)/self.num_coef
-                q[:self.num_coef] = 0.1*np.sin(2*np.pi*t)
-                q[self.num_coef:] = np.cos(2*np.pi*t)
-            elif mode == 'square':
-                # Assume n%4 == 0
-                n = self.num_coef//4
-                # x-coord
-                q[:n] = np.arange(n)/n
-                q[n:2*n] = 1
-                q[2*n:3*n] = 1 - (np.arange(n)/n)
-                q[3*n:4*n] = 0
-                # y-coord
-                q[4*n:5*n] = 0
-                q[5*n:6*n] = np.arange(n)/n
-                q[6*n:7*n] = 1
-                q[7*n:8*n] = 1 - (np.arange(n)/n)
-            elif mode == 'structured_random':
-                # Assume n%2 == 0
-                n = self.num_coef//2
-                # x-coord
-                q[0:n] = 0.8*self.np_random.rand(n) + 0.2
-                q[n:2*n] = -0.8*self.np_random.rand(n) - 0.2
-                # y-coord
-                q[2*n:3*n] = np.arange(n)/n
-                q[3*n:4*n] = np.arange(n)/n
-            elif mode == 'random':
-                q = np.random.rand(self.q_dim) - 0.5
-            qs[i, :] = q
-          
-        return qs
-        
-    def render(self, q):
-        screen_width = 600
-        screen_height = 600
-        eps = 1e-5
-        
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-        
-        # Use cubic spline to smooth out the new state parametric curve
-        cs = CubicSpline(np.linspace(0,1,self.num_coef), q.reshape(2, self.num_coef).T)
-        coords = cs(self.ts)
-        coords = coords/(np.max(np.abs(coords))+eps)*100 + 300
-        verts = zip(coords[:,0], coords[:,1])
-        
-        self.viewer.draw_polygon(list(verts))
+    def __init__(self, naive=False, step_size=1e-2, state_dim=64, max_num_step=100):
+        # Naive: whether to proceed with usual reward or use PMP-based modified version.
+        self.naive = naive
 
-        if q is None:
-            return None
+        # State and action info
+        self.state_dim = state_dim
+        self.max_val = 4; self.min_val = -4
+        self.max_act = 1; self.min_act = -1
+        self.action_space = spaces.Box(low=self.min_act, high=self.max_act, shape=(self.state_dim,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=self.min_val, high=self.max_val, shape=(self.state_dim,), dtype=np.float32)
+        self.state = None
+        
+        # Discount info
+        self.gamma = 0.99
+        self.step_pow = 0.1
+        self.gamma_inc = self.gamma**self.step_pow
+        self.discount = 1.0
 
-        return self.viewer.render(return_rgb_array=True)
-     
-    def close(self):
-        if self.viewer:
-            self.viewer.close()
-            self.viewer = None
+        # Step info
+        self.max_num_step = max_num_step
+        self.num_step = 0
+        self.step_size = step_size
 
-# Environment for optimizing general shape (can be represented by its level-set fct).
-class Shape(ContinuousEnv):
-    def __init__(self, q_dim=64):
-        super().__init__(q_dim, num_comp=2)
+        # Shape interpolation info
         self.xk, self.yk = np.mgrid[-1:1:8j, -1:1:8j]
         self.xg, self.yg = np.mgrid[-1:1:50j, -1:1:50j]
         self.viewer = ImgDim(width=self.xg.shape[0], height=self.yg.shape[1])
-    
-    # Get area and length
-    def obj_comps(self, q):
-        ans = np.zeros((q.shape[0], 2))
-        for i in range(q.shape[0]):
-            peri, area = isoperi_info(q[i], self.xk, self.yk, self.xg, self.yg)
-            ans[i, 0] = peri; ans[i, 1] = area
-        return ans
 
-    # Get objective peri-area ratio
-    def obj(self, q):
-        comps = self.obj_comps(q)
-        peris = comps[:, 0]; areas = comps[:, 1] 
-        ret = np.zeros(q.shape[0])
-        for i in range(q.shape[0]):
-            ret[i] = peris[i]/(np.sqrt(areas[i]) + EPS)
+        # Create generator.
+        self.rng = np.random.default_rng(seed=42)
+
+        # Control regularize factor
+        self.c = 1.0/16
+ 
+    def step(self, action):
+        self.state += self.step_size *action
+        '''
+        action_norm = np.max(np.abs(action))
+        if action_norm > 0.5:
+            self.state += 0.1*action
+        elif action_norm > 0.1:
+            self.state += 0.5*action
+        elif action_norm < 0.01:
+            action = self.np_random.rand(self.num_coef*2)
+            self.state += action
+        '''
+        # Calculate value
+        area, peri = geometry_info(self.state, self.xk, self.yk, self.xg, self.yg)
+        done = (area == 0 or peri == 0)
+        if not done:
+            val = peri/np.sqrt(area)
+            done = self.num_step > self.max_num_step
+        else:
+            val = 1e9
+
+        # Update number of step
+        self.num_step += 1
+
+        # Calculate final reward
+        if self.naive:
+            reward = -val
+        else:
+            # Reward reshape
+            self.discount *= self.gamma_inc
+            reward = 1/(self.discount**2) * (self.c * np.sum(action**2)*0.5 - val)
+
+        # Debug info
+        if self.num_step == 1:
+            print('Begin: val:', val, '; reward:', reward)
+        if done:
+            print('End: val:', val, '; reward:', reward)
         
-        return ret
-      
-    def sample_q(self, num_examples, mode='random'):
-        return generate_coords(dim=self.q_dim, num_samples=num_examples, shape=mode)
-        
-    def render(self, q):
+        return np.array(self.state), reward, done, False, {}
+
+    def get_val(self, reward, action):
+        if self.naive:
+            return -reward 
+        else:
+            return self.c * np.sum(action**2)*0.5 - (reward * (self.discount**2))
+    
+    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
+        super().reset(seed=seed)
+        self.num_step = 0
+        self.discount = 1.0
+        return self.reset_at(mode='random'), {}
+    
+    def reset_at(self, mode='random'):
+        self.num_step = 0
+        width = int(np.sqrt(self.state_dim))
+        self.state = np.ones((width, width))
+        if mode=='hole':
+            self.state[1:8, 1:8] = 0
+            self.state += self.rng.random((width, width))
+            self.state = np.clip(self.state, 0, 1)
+        elif mode=='random':
+            self.state = self.rng.random((width, width))
+        elif mode=='random_with_padding':
+            # Random with zero padding
+            self.state[1:(width-1), :(width-1)] = self.rng.random((width-2, width-1))
+        self.state -= .5
+        self.state = self.state.reshape(-1)
+        return np.array(self.state)
+    
+    def render(self):
         xk, yk, xg, yg = self.xk, self.yk, self.xg, self.yg
-        return 255-spline_interp(q.reshape(xk.shape[0], yk.shape[0]), xk, yk, xg, yg)
+        return 255-spline_interp(self.state.reshape(xk.shape[0], yk.shape[0]), xk, yk, xg, yg)
     
     def close(self):
         if self.viewer:
@@ -156,34 +139,16 @@ def spline_interp(z, xk, yk, xg, yg):
     _, thresh_img = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY)
     return thresh_img
 
-def generate_coords(dim=64, num_samples=1024, shape='random'):
-    width = int(np.sqrt(dim))
-    qs = np.ones((num_samples, width, width))
-    if shape=='hole':
-        qs[:, 2:6, 2:6] = -1
-        #qs[:, :, 7] = -1
-        #qs[:, 1:2, 1:width-1] = np.repeat(np.ones((1, 1, width-2)), num_samples, axis=0)
-        # qs[:, 2:3, width//2] = 1
-        #qs = 1 - qs
-        #q[width//2, width//2] = 0
-    elif shape=='random':
-        qs = np.random.rand(num_samples, width, width)
-    else:
-        # Random with zero padding
-        qs[:, 1:(width-1), :(width-1)] = np.random.rand(num_samples, width-2, width-1)
-    qs -= .5
-    return qs.reshape(num_samples, width*width)
-
-def isoperi_info_from_img(img):
+def geometry_info_from_img(img):
     # Extract contours and calculate perimeter/area   
     contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    peri = 0; area = 0
+    area = 0; peri = 0
     for cnt in contours:
         area -= cv2.contourArea(cnt, oriented=True)
         peri += cv2.arcLength(cnt, closed=True)
+    
+    return area, peri
 
-    return peri, area
-
-def isoperi_info(z, xk, yk, xg, yg):
+def geometry_info(z, xk, yk, xg, yg):
     img = spline_interp(z, xk, yk, xg, yg)
-    return isoperi_info_from_img(img)
+    return geometry_info_from_img(img)
