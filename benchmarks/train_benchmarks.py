@@ -8,12 +8,12 @@ env_names = ['shape_boundary', 'naive_shape_boundary', 'shape', 'naive_shape', '
 
 # Train basic params
 total_samples_dict = {
-                'shape_boundary': 1e2,
-                'naive_shape_boundary': 1e2,
-                'shape': 1e2,
-                'naive_shape': 1e1,
-                'molecule': 1e1,
-                'naive_molecule': 1e1
+                'shape_boundary': 1e5,
+                'naive_shape_boundary': 1e5,
+                'shape': 1e5,
+                'naive_shape': 1e5,
+                'molecule': 1e5,
+                'naive_molecule': 1e5
                 }
 
 print('\n\n\n\n')
