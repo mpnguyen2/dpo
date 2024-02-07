@@ -6,8 +6,7 @@ from memory import ReplayMemory
 
 MAX_CLIP_VAL = 1e2
 
-def optimize_net(memory: ReplayMemory, main_net, num_iter, lr,
-                 batch_size=32, log_interval=100):
+def optimize_net(memory: ReplayMemory, main_net, num_iter, lr, batch_size, log_interval):
     total_loss = 0
     cnt = 0
     # Setup optimizers
@@ -33,7 +32,7 @@ def optimize_net(memory: ReplayMemory, main_net, num_iter, lr,
             cnt = 0
             total_loss = 0
 
-def train(env_name, num_optimize_iters, zero_order=True):
+def train(env_name, num_optimize_iters, warm_up_threshold=0, zero_order=True, save_interval=10):
     # Get hyperparams from file.
     rate, num_traj, step_size,\
         lr, batch_size, log_interval = get_train_params(env_name)
@@ -57,20 +56,30 @@ def train(env_name, num_optimize_iters, zero_order=True):
     policy = Policy(zero_order, main_net, rate, step_size)
     memory.set_policy(policy)
     
+    # Save path
+    zero_order_str = 'zero_order' if zero_order else 'first_order'
+    save_path = 'models/' + env_name + '_OCF_' + zero_order_str + '.pth'
+
     # Main training loop over time step.
     max_step = len(num_optimize_iters)
     for stage in range(max_step):
-        print('\n\nCurrently at stage {}'.format(stage))
+        reinforce = False if stage < warm_up_threshold else True
+        print('\n\nCurrently at stage {}. Reinforce: {}'.format(stage, str(reinforce)))
+
         # Sample
-        memory.add_samples(num_traj, max_step=stage)
-            
-        # Optimize net for next stage from replay memory
-        optimize_net(memory, main_net, num_optimize_iters[stage], lr, batch_size, log_interval)
+        k = 0 if stage < warm_up_threshold else min(stage//2, stage-1)
+        memory.add_samples(num_traj, max_step=stage, k=k)
 
         # Refresh memory
         memory.refresh()
 
-    # Save main net.
-    zero_order_str = 'zero_order' if zero_order else 'first_order'
-    torch.save(main_net.state_dict(), 'models/' + env_name + '_OCF_' + zero_order_str + '.pth')
+        # Optimize net for next stage from replay memory
+        optimize_net(memory, main_net, num_optimize_iters[stage], lr, batch_size, log_interval)
+
+        # Save periodically
+        if stage % save_interval == 0:
+            torch.save(main_net.state_dict(), save_path)
+    
+    # Final save.
+    torch.save(main_net.state_dict(), save_path)
     print('\nDone OCF training.')

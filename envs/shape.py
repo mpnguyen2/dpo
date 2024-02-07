@@ -12,7 +12,7 @@ ImgDim = namedtuple('ImgDim', 'width height')
 class Shape(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, naive=False, step_size=1e-2, state_dim=64, max_num_step=100):
+    def __init__(self, naive=False, step_size=1e-2, state_dim=64, max_num_step=20):
         # Naive: whether to proceed with usual reward or use PMP-based modified version.
         self.naive = naive
 
@@ -48,27 +48,18 @@ class Shape(gym.Env):
  
     def step(self, action):
         self.state += self.step_size *action
-        '''
-        action_norm = np.max(np.abs(action))
-        if action_norm > 0.5:
-            self.state += 0.1*action
-        elif action_norm > 0.1:
-            self.state += 0.5*action
-        elif action_norm < 0.01:
-            action = self.np_random.rand(self.num_coef*2)
-            self.state += action
-        '''
+
+        # Update number of step
+        self.num_step += 1
+
         # Calculate value
         area, peri = geometry_info(self.state, self.xk, self.yk, self.xg, self.yg)
         done = (area == 0 or peri == 0)
         if not done:
             val = peri/np.sqrt(area)
-            done = self.num_step > self.max_num_step
+            done = self.num_step >= self.max_num_step
         else:
             val = 1e9
-
-        # Update number of step
-        self.num_step += 1
 
         # Calculate final reward
         if self.naive:
@@ -78,12 +69,6 @@ class Shape(gym.Env):
             self.discount *= self.gamma_inc
             reward = 1/(self.discount**2) * (self.c * np.sum(action**2)*0.5 - val)
 
-        # Debug info
-        if self.num_step == 1:
-            print('Begin: val:', val, '; reward:', reward)
-        if done:
-            print('End: val:', val, '; reward:', reward)
-        
         return np.array(self.state), reward, done, False, {}
 
     def get_val(self, reward, action):

@@ -22,7 +22,7 @@ def get_model_avg_final_vals(env, model, num_traj, num_step_per_traj,
             if done:
                 break
         val = env.get_val(reward, action)
-        print('First: {:.3f}, final: {:.3f}'.format(first_val, val))
+        # print('First: {:.3f}, final: {:.3f}'.format(first_val, val))
         vals.append(val)
 
     return np.mean(np.array(vals))

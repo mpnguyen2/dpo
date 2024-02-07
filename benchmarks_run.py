@@ -6,25 +6,25 @@ from utils import get_environment, setup_ocf_model
 from benchmarks.sb3_utils import setup_benchmark_model
 from test import get_model_avg_final_vals
 
-methods = ['OCF_zero_order', 'OCF_first_order', 'SAC'] # ['TRPO', 'PPO', 'SAC']
-env_names = ['shape_boundary', 'naive_shape_boundary'] #'molecule', 'naive_shape'] #, 'shape', 'molecule']
+methods = ['OCF_zero_order'] #, 'OCF_first_order', 'TRPO', 'PPO', 'SAC']
+env_names = ['shape'] #['shape_boundary', 'naive_shape_boundary', 'shape', 'naive_shape'] #, 'molecule', 'naive_molecule']
 
 # Test basic params
 num_traj_dict = {
-                'shape_boundary': 100,
-                'naive_shape_boundary': 100,
-                'shape': 1000,
-                'naive_shape': 1000,
-                'molecule': 1000,
-                'naive_molecule': 1000
+                'shape_boundary': 200,
+                'naive_shape_boundary': 200,
+                'shape': 200,
+                'naive_shape': 200,
+                'molecule': 200,
+                'naive_molecule': 200
                 }
 num_step_per_traj_dict = {
-                'shape_boundary': 100,
-                'naive_shape_boundary': 100,
-                'shape': 100,
-                'naive_shape': 100,
-                'molecule': 100,
-                'naive_molecule': 100
+                'shape_boundary': 20,
+                'naive_shape_boundary': 20,
+                'shape': 20,
+                'naive_shape': 20,
+                'molecule': 10,
+                'naive_molecule': 10
                 }
 
 print('\n\n\n\n')

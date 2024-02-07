@@ -15,7 +15,7 @@ class ShapeBoundary(gym.Env):
         "render_fps": 15,
     }
 
-    def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=100):
+    def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=20):
         # Naive: whether to proceed with usual reward or use PMP-based modified version.
         self.naive = naive
 
@@ -74,15 +74,15 @@ class ShapeBoundary(gym.Env):
         self.verts = list(zip(coords[:,0], coords[:,1]))
         done = (polygon.area == 0 or polygon.length == 0)
         
+        # Update number of step
+        self.num_step += 1
+
         # Calculate value
         if not done:
             val = polygon.length/np.sqrt(polygon.area)
-            done = self.num_step > self.max_num_step
+            done = self.num_step >= self.max_num_step
         else:
             val = 1e9
-
-        # Update number of step
-        self.num_step += 1
 
         # Calculate final reward
         if self.naive:

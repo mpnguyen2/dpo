@@ -5,14 +5,8 @@ import torch
 from policy import Policy
 from query_system import QuerySystem
 
-# Constant clipping value
-MAX_VAL = 10.0
-
 # Default device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Data = namedtuple('Data', ('x', 'y'))
-
 
 def _get_samples_from_one_pool(memory, batch_size):
     if len(memory) > 0:
@@ -22,8 +16,8 @@ def _get_samples_from_one_pool(memory, batch_size):
         
 class ReplayMemory(object):
     def __init__(self, query_system: QuerySystem, zero_order, 
-                 capacity=1e6, new_data_capacity=1e2,
-                 noise=1e-3):
+                 capacity=5e5, new_data_capacity=256,
+                 noise=1e-6):
         # Initialize memory.
         self.capacity = capacity
         self.new_data_capacity = new_data_capacity
@@ -66,13 +60,11 @@ class ReplayMemory(object):
         
         return samples
 
-    def add_samples(self, num_traj, max_step):
+    def add_samples(self, num_traj, max_step, k):
         for _ in range(num_traj):
             samples = self._query_samples(max_step)
 
             # During first k step, store the label given by previous policy.
-            L = len(samples)
-            k = min(L//2, L-1)
             for i in range(k):
                 state, _ = samples[i]
                 prev_policy_val = self.policy.get_main_net_val(state)
@@ -83,10 +75,13 @@ class ReplayMemory(object):
             self.new_samples.extend(samples[k:])
 
     def get_samples(self, batch_size):
-        # Sample from each type of memory an equal number of samples.
-        return _get_samples_from_one_pool(self.memory, batch_size) +\
-               _get_samples_from_one_pool(self.reinforce_samples, batch_size) +\
-               _get_samples_from_one_pool(self.new_samples, batch_size) 
+        # Sample from main pool only (for now).
+        samples = _get_samples_from_one_pool(self.memory, batch_size)
+        #get_samples_from_one_pool(self.new_samples, batch_size) 
+        #if reinforce:
+        #samples +=_get_samples_from_one_pool(self.reinforce_samples, batch_size)
+
+        return samples
 
     def refresh(self):
         # Push and new samples from current stage to main memory.

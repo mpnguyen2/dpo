@@ -10,7 +10,7 @@ pyrosetta.init()
 
 ### Generic continuous environment for reduced Hamiltonian dynamics framework
 class Molecule(gym.Env):
-    def __init__(self, pose, naive=False, reset_scale=90, step_size=1e-2, max_num_step=100):
+    def __init__(self, pose, naive=False, reset_scale=90, step_size=1e-1, max_num_step=10):
         # Naive: whether to proceed with usual reward or use PMP-based modified version.
         self.naive = naive
 
@@ -54,10 +54,11 @@ class Molecule(gym.Env):
             self.pose.set_phi(k+1, self.state[2*k]) 
             self.pose.set_psi(k+1, self.state[2*k+1])
         val = self.sfxn(self.pose)
-        done = self.num_step > self.max_num_step
 
         # Update number of step
         self.num_step += 1
+
+        done = self.num_step >= self.max_num_step
 
         # Calculate final reward
         if self.naive:
@@ -66,14 +67,6 @@ class Molecule(gym.Env):
             # Reward reshape
             self.discount *= self.gamma_inc
             reward = 1/(self.discount**2) * (np.mean(action**2)*0.5 - val)
-        
-        '''
-        # Debug info
-        if self.num_step == 1:
-            print('Begin: val:', val, '; reward:', reward)
-        if done:
-            print('End: val:', val, '; reward:', reward)
-        '''
         
         return np.array(self.state), reward, done, False, {}
 

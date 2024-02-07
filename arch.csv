@@ -1,4 +1,4 @@
 env_name,state_dim,derivative_layer_dims,val_layer_dims
 shape,64,"[128, 256, 512]","[128, 256, 512, 128]"
 shape_boundary,16,"[32, 64, 128, 256]","[32, 64, 128, 32]"
-molecule,16,"[32, 64, 128, 256]","[32, 64, 128, 32]"
+molecule,16,"[64, 128, 256]","[32, 64, 128, 32]"
