@@ -1,18 +1,19 @@
-import numpy as np
 from typing import Optional
+import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pyrosetta
 from pyrosetta import *
 from pyrosetta.teaching import *
+from envs.bbo import BBO
 
 pyrosetta.init()
 
 ### Generic continuous environment for reduced Hamiltonian dynamics framework
-class Molecule(gym.Env):
-    def __init__(self, pose, naive=False, reset_scale=90, step_size=1e-1, max_num_step=10):
-        # Naive: whether to proceed with usual reward or use PMP-based modified version.
-        self.naive = naive
+class Molecule(BBO):
+    def __init__(self, pose, naive=False, reset_scale=90, step_size=1e-2, max_num_step=10):
+        # Superclass setup
+        super(Molecule, self).__init__(naive, step_size, max_num_step)
 
         # Molecule info
         self.pose = pose
@@ -30,23 +31,9 @@ class Molecule(gym.Env):
         # Reset scale
         self.reset_scale = reset_scale
 
-        # Discount info
-        self.gamma = 0.99
-        self.step_pow = 0.1
-        self.gamma_inc = self.gamma**self.step_pow
-        self.discount = 1.0
-
-        # Step info
-        self.max_num_step = max_num_step
-        self.num_step = 0
-        self.step_size = step_size
-
         # PyMol visualization
         self.pmm = PyMOLMover()
         self.pmm.keep_history(True)
-
-        # Create generator.
-        self.rng = np.random.default_rng(seed=42)
     
     def step(self, action):
         self.state += self.step_size * action
@@ -61,20 +48,9 @@ class Molecule(gym.Env):
         done = self.num_step >= self.max_num_step
 
         # Calculate final reward
-        if self.naive:
-            reward = -val
-        else:
-            # Reward reshape
-            self.discount *= self.gamma_inc
-            reward = 1/(self.discount**2) * (np.mean(action**2)*0.5 - val)
+        reward = self.calculate_final_reward(val, action)
         
         return np.array(self.state), reward, done, False, {}
-
-    def get_val(self, reward, action):
-        if self.naive:
-            return -reward 
-        else:
-            return np.mean(action**2)*0.5 - (reward * (self.discount**2))
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)

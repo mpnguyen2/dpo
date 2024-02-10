@@ -19,7 +19,7 @@ def get_RL_nets_architectures(env_name, on_policy=True):
     critic_dims = str_to_list(net_info[critic_dims_field].values[0])
     return actor_dims, critic_dims
 
-def train_benchmark_model(method, env_name, total_samples, common_dims=[], 
+def train_benchmark_model(method, gamma, env_name, total_samples, common_dims=[], 
           activation='ReLU', lr=3e-3, log_interval=10):
     # On-policy mean optimize policy directly using current policy being optimized.
     on_policy = method in set(['PPO', 'TRPO', 'A2C'])
@@ -27,6 +27,7 @@ def train_benchmark_model(method, env_name, total_samples, common_dims=[],
 
     # Construct environment
     env = get_environment(env_name)
+    env.set_gamma(gamma) 
     actor_dims, critic_dims = get_RL_nets_architectures(env_name, on_policy=on_policy)
 
     # Net architecture for actor and critic networks
@@ -51,16 +52,16 @@ def train_benchmark_model(method, env_name, total_samples, common_dims=[],
     
     # Build the model using SB3.
     if method == 'TRPO':
-        model = TRPO("MlpPolicy", env, learning_rate=lr, policy_kwargs=policy_kwargs, verbose=1)
+        model = TRPO("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
     elif method == 'PPO':
-        model = PPO("MlpPolicy", env, learning_rate=lr, policy_kwargs=policy_kwargs, verbose=1)
+        model = PPO("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
     elif method == 'SAC':
-        model = SAC("MlpPolicy", env, learning_rate=lr, policy_kwargs=policy_kwargs, verbose=1)
+        model = SAC("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
     model.device = DEVICE
 
     # Train and save model with SB3.
     model.learn(total_timesteps=total_samples, log_interval=log_interval)
-    model_path ="models/" + env_name + '_' + method
+    model_path ="models/" + env_name + '_' + method + '_' + str(gamma)
     model.save(model_path)
 
 def _load_benchmark_model(method, model_path):

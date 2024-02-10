@@ -1,20 +1,19 @@
+from typing import Optional
 import numpy as np
 from scipy import interpolate
 import cv2
-from typing import Optional
-
-import gymnasium as gym
 from gymnasium import spaces
+from envs.bbo import BBO
 
 from collections import namedtuple
 ImgDim = namedtuple('ImgDim', 'width height')
 
-class Shape(gym.Env):
+class Shape(BBO):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, naive=False, step_size=1e-2, state_dim=64, max_num_step=20):
-        # Naive: whether to proceed with usual reward or use PMP-based modified version.
-        self.naive = naive
+        # Superclass setup
+        super(Shape, self).__init__(naive, step_size, max_num_step)
 
         # State and action info
         self.state_dim = state_dim
@@ -23,29 +22,12 @@ class Shape(gym.Env):
         self.action_space = spaces.Box(low=self.min_act, high=self.max_act, shape=(self.state_dim,), dtype=np.float32)
         self.observation_space = spaces.Box(low=self.min_val, high=self.max_val, shape=(self.state_dim,), dtype=np.float32)
         self.state = None
-        
-        # Discount info
-        self.gamma = 0.99
-        self.step_pow = 0.1
-        self.gamma_inc = self.gamma**self.step_pow
-        self.discount = 1.0
-
-        # Step info
-        self.max_num_step = max_num_step
-        self.num_step = 0
-        self.step_size = step_size
 
         # Shape interpolation info
         self.xk, self.yk = np.mgrid[-1:1:8j, -1:1:8j]
         self.xg, self.yg = np.mgrid[-1:1:50j, -1:1:50j]
         self.viewer = ImgDim(width=self.xg.shape[0], height=self.yg.shape[1])
 
-        # Create generator.
-        self.rng = np.random.default_rng(seed=42)
-
-        # Control regularize factor
-        self.c = 1.0/16
- 
     def step(self, action):
         self.state += self.step_size *action
 
@@ -61,21 +43,8 @@ class Shape(gym.Env):
         else:
             val = 1e9
 
-        # Calculate final reward
-        if self.naive:
-            reward = -val
-        else:
-            # Reward reshape
-            self.discount *= self.gamma_inc
-            reward = 1/(self.discount**2) * (self.c * np.sum(action**2)*0.5 - val)
-
+        reward = self.calculate_final_reward(val, action)
         return np.array(self.state), reward, done, False, {}
-
-    def get_val(self, reward, action):
-        if self.naive:
-            return -reward 
-        else:
-            return self.c * np.sum(action**2)*0.5 - (reward * (self.discount**2))
     
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)

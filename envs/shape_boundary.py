@@ -1,23 +1,23 @@
+from typing import Optional
 import numpy as np
 from scipy.interpolate import CubicSpline
 from shapely.geometry import Polygon
-from typing import Optional
-import gymnasium as gym
 from gymnasium import spaces
 import pygame
 from pygame import gfxdraw
+from envs.bbo import BBO
 
 MAX_ACT = 1e4
 
-class ShapeBoundary(gym.Env):
+class ShapeBoundary(BBO):
     metadata = {
         "render_modes": ["human", "rgb_array"],
         "render_fps": 15,
     }
 
     def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=20):
-        # Naive: whether to proceed with usual reward or use PMP-based modified version.
-        self.naive = naive
+        # Superclass setup
+        super(ShapeBoundary, self).__init__(naive, step_size, max_num_step)
 
         # State and action info
         self.state_dim = state_dim
@@ -26,17 +26,6 @@ class ShapeBoundary(gym.Env):
         self.min_act = -1; self.max_act = 1
         self.action_space = spaces.box.Box(low=self.min_act, high=self.max_act, shape=(state_dim,), dtype=np.float32)
         self.state = None
-
-        # Discount info
-        self.gamma = 0.99
-        self.step_pow = 0.1
-        self.gamma_inc = self.gamma**self.step_pow
-        self.discount = 1.0
-
-        # Step info
-        self.max_num_step = max_num_step
-        self.num_step = 0
-        self.step_size = step_size
     
         # Geometry
         self.num_coef = self.state_dim//2
@@ -50,9 +39,6 @@ class ShapeBoundary(gym.Env):
         self.screen = None
         self.clock = None
         self.isopen = True
-
-        # Create generator.
-        self.rng = np.random.default_rng(seed=42)
 
     def step(self, action):
         self.state += self.step_size * action
@@ -85,20 +71,9 @@ class ShapeBoundary(gym.Env):
             val = 1e9
 
         # Calculate final reward
-        if self.naive:
-            reward = -val
-        else:
-            # Reward reshape
-            self.discount *= self.gamma_inc
-            reward = 1/(self.discount**2) * (np.sum(action**2)*0.5 - val)
+        reward = self.calculate_final_reward(val, action)
             
         return np.array(self.state), reward, done, False, {}
-
-    def get_val(self, reward, action):
-        if self.naive:
-            return -reward 
-        else:
-            return np.sum(action**2)*0.5 - (reward * (self.discount**2))
     
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)
