@@ -61,7 +61,7 @@ def train_benchmark_model(method, gamma, env_name, total_samples, common_dims=[]
 
     # Train and save model with SB3.
     model.learn(total_timesteps=total_samples, log_interval=log_interval)
-    model_path ="models/" + env_name + '_' + method + '_' + str(gamma)
+    model_path ="models/" + env_name + '_' + method + '_' + str(gamma).replace('.', '_')
     model.save(model_path)
 
 def _load_benchmark_model(method, model_path):

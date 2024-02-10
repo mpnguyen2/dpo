@@ -22,7 +22,7 @@ num_traj_dict = {
                 'naive_molecule': 200
                 }
 num_step_per_traj_dict = {
-                'shape_boundary': 15,
+                'shape_boundary': 20,
                 'naive_shape_boundary': 20,
                 'shape': 20,
                 'naive_shape': 20,
@@ -43,7 +43,7 @@ for base_method in base_methods:
         methods_with_gammas.append((base_method, -1))
     else:
         for gamma in all_gammas:
-            methods_with_gammas.append((base_method + '_' + str(gamma), gamma))
+            methods_with_gammas.append((base_method + '_' + str(gamma).replace('.', '_'), gamma))
 
 print('\n\n\n\n')
 methods = [m for m, _ in methods_with_gammas]

@@ -38,7 +38,7 @@ for env_name in env_names:
         for gamma in gammas:
             individual_start_time = time.time()
             print('\n\n')
-            print('Training ' + method + ' on ' + env_name + ' with gamma ' + str(gamma))
+            print('Training ' + method + ' on ' + env_name + ' with gamma ' + str(gamma).replace('.', '_'))
             train_benchmark_model(method, gamma, env_name, total_samples=int(total_samples_dict[env_name]), 
                 lr=3e-4, log_interval=500)
             print('Training takes {:.3f} hours'.format(int(time.time()-individual_start_time)/3600))
