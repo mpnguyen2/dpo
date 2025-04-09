@@ -128,10 +128,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Video and image files
+# Video files
 *.wmv
 *.mp4
-*.png
 
 # Save data
 *.npy

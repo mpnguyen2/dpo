@@ -8,10 +8,12 @@ from pyrosetta.teaching import *
 from envs.bbo import BBO
 
 pyrosetta.init()
+MAX_ABS = 1e18
 
 ### Generic continuous environment for reduced Hamiltonian dynamics framework
 class Molecule(BBO):
-    def __init__(self, pose, naive=False, reset_scale=90, step_size=1e-2, max_num_step=10):
+    # 1e-2
+    def __init__(self, pose, naive=False, reset_scale=1e-2, step_size=1e-1, max_num_step=6):
         # Superclass setup
         super(Molecule, self).__init__(naive, step_size, max_num_step)
 
@@ -49,6 +51,7 @@ class Molecule(BBO):
 
         # Calculate final reward
         reward = self.calculate_final_reward(val, action)
+        reward = np.clip(reward, -MAX_ABS, MAX_ABS)
         
         return np.array(self.state), reward, done, False, {}
 
@@ -57,13 +60,21 @@ class Molecule(BBO):
         self.num_step = 0
         self.discount = 1.0
         return self.reset_at(mode='random'), {}
+        #return self.reset_at(mode='test'), {}
     
     def reset_at(self, mode='random'):
         if mode == 'random':
             self.state = self.reset_scale*(self.rng.random(self.state_dim)-.5)
-        elif mode == 'zero':
-            # Set both phi and psi equal 0
-            self.state = np.zeros(self.state_dim)
+        elif mode == 'test':
+            not_ok = True
+            while not_ok:
+                self.discount = 1.0
+                self.state = self.reset_scale*(self.rng.random(self.state_dim)-.5)
+                for k in range(self.num_residue):
+                    self.pose.set_phi(k+1, self.state[2*k]) 
+                    self.pose.set_psi(k+1, self.state[2*k+1])
+                val = self.sfxn(self.pose)
+                not_ok = val < 1800
         return np.array(self.state)
 
     def render(self):

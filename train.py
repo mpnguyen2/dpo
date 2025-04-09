@@ -28,11 +28,11 @@ def optimize_net(memory: ReplayMemory, main_net, num_iter, lr, batch_size, log_i
         # Logging.
         cnt += 1
         if (i+1) % log_interval == 0:
-            print('Iter {}: loss {:.3f}.'.format(i+1, total_loss/cnt))
+            print('Iter {}: loss {:.8f}.'.format(i+1, total_loss/cnt))
             cnt = 0
             total_loss = 0
 
-def train(env_name, num_optimize_iters, warm_up_threshold=0, zero_order=True, save_interval=10):
+def train(env_name, num_optimize_iters, exploit_threshold=0, zero_order=True, save_interval=10):
     # Get hyperparams from file.
     rate, num_traj, step_size,\
         lr, batch_size, log_interval = get_train_params(env_name)
@@ -58,16 +58,16 @@ def train(env_name, num_optimize_iters, warm_up_threshold=0, zero_order=True, sa
     
     # Save path
     zero_order_str = 'zero_order' if zero_order else 'first_order'
-    save_path = 'models/' + env_name + '_OCF_' + zero_order_str + '.pth'
+    save_path = 'models/' + env_name + '_DPO_' + zero_order_str + '.pth'
 
     # Main training loop over time step.
     max_step = len(num_optimize_iters)
     for stage in range(max_step):
-        reinforce = False if stage < warm_up_threshold else True
+        reinforce = False if stage < exploit_threshold else True
         print('\n\nCurrently at stage {}. Reinforce: {}'.format(stage, str(reinforce)))
 
         # Sample
-        k = 0 if stage < warm_up_threshold else min(stage//2, stage-1)
+        k = 0 if stage < exploit_threshold else min(stage//2, stage-1)
         memory.add_samples(num_traj, max_step=stage, k=k)
 
         # Refresh memory
@@ -82,4 +82,4 @@ def train(env_name, num_optimize_iters, warm_up_threshold=0, zero_order=True, sa
     
     # Final save.
     torch.save(main_net.state_dict(), save_path)
-    print('\nDone OCF training.')
+    print('\nDone differential policy optimization training.')

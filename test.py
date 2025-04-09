@@ -2,30 +2,32 @@ import numpy as np
 import imageio
 
 # Run num_traj trajectories using policy given by model on env.
-def get_model_avg_final_vals(env, model, num_traj, num_step_per_traj,
+def test_model_through_vals(seeds, env, model, num_traj, num_step_per_traj,
                                  benchmark_model=False):
-    vals = [] # List of last rewards for trajectories in test.
-    for _ in range(num_traj):
-        obs, _ = env.reset() # obs same as state in our case.
-        num_iteration = 0
-        action = np.zeros(obs.shape)
-        first_val = None
-        for _ in range(num_step_per_traj):
-            if benchmark_model:
-                action, _ = model.predict(obs)
-            else:
-                action = model.get_action(obs, action)
-            obs, reward, done, _, _ = env.step(action)
-            if first_val is None:
-                first_val = env.get_val(reward, action)
-            num_iteration += 1
-            if done:
-                break
-        val = env.get_val(reward, action)
-        # print('First: {:.3f}, final: {:.3f}'.format(first_val, val))
-        vals.append(val)
+    # List of all vals across seed & trajectory of shape (seed, num_traj, num_step_per_traj).
+    all_vals = [[] for _ in range(len(seeds))]
+    for i, seed in enumerate(seeds):
+        env.rng = np.random.default_rng(seed=seed)
+        for _ in range(num_traj):
+            obs, _ = env.reset() # obs same as state in our case.
+            num_iteration = 0
+            action = np.zeros(obs.shape)
+            vals_cur_traj = []
+            for _ in range(num_step_per_traj):
+                if benchmark_model:
+                    action, _ = model.predict(obs)
+                else:
+                    action = model.get_action(obs, action)
+                obs, reward, done, _, _ = env.step(action)
+                val = env.get_val(reward, action)
+                vals_cur_traj.append(val)
+                num_iteration += 1
+                if done:
+                    break
+            all_vals[i].append(np.array(vals_cur_traj))
+    all_vals = np.array(all_vals)
 
-    return np.mean(np.array(vals))
+    return all_vals.reshape(-1, num_step_per_traj)
 
 # Visualize a particular trajectories from given model's policy.
 def visualize(env, model, num_step=100, benchmark_model=False,
@@ -50,4 +52,4 @@ def visualize(env, model, num_step=100, benchmark_model=False,
     
     # Save simulation.
     if img_path is not None:
-        imageio.mimsave(img_path, [np.array(img) for i, img in enumerate(images) if i%2 == 0], fps=20)
+        imageio.mimsave(img_path, [np.array(img) for img in images], format='wmv', fps=20)

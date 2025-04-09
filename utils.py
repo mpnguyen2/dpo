@@ -1,3 +1,6 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
 import pandas as pd
 import torch
 import pyrosetta
@@ -91,14 +94,56 @@ def setup_main_net(env_name, zero_order, state_dim):
     return main_net
 
 
-def setup_ocf_model(env, env_name, ocf_method):
+def setup_dpo_model(method, env, env_name):
     rate, _, step_size, _, _, _ = get_train_params(env_name)
-    zero_order = ocf_method.endswith('zero_order')
+    zero_order = method.endswith('zero_order')
     state_dim = env.state_dim
     main_net = setup_main_net(env_name, zero_order, state_dim)
-    path = 'models/' + env_name + '_' + ocf_method + '.pth'
+    path = 'models/' + env_name + '_' + method + '.pth'
     main_net.load_state_dict(torch.load(path))
     main_net.to(DEVICE)
     model = Policy(zero_order, main_net, rate, step_size)
 
     return model
+
+### Plotting
+def _bootstrap(data, n_boot=2000, ci=68):
+    boot_dist = []
+    for _ in range(int(n_boot)):
+        resampler = np.random.randint(0, data.shape[0], data.shape[0])
+        sample = data.take(resampler, axis=0)
+        boot_dist.append(np.mean(sample, axis=0))
+    b = np.array(boot_dist)
+    s1 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.-ci/2.)
+    s2 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.+ci/2.)
+    return (s1,s2)
+
+def _tsplot(ax, x, data, mode='bootstrap', **kw):
+    est = np.mean(data, axis=0)
+    if mode == 'bootstrap':
+        cis = _bootstrap(data)
+    else:
+        sd = np.std(data, axis=0)
+        cis = (est - sd, est + sd)
+    p2 = ax.fill_between(x, cis[0], cis[1], alpha=0.2, **kw)
+    p1 = ax.plot(x, est, **kw)
+    ax.margins(x=0)
+
+    return p1, p2
+
+def plot_eval_benchmarks(eval_dict, time_steps, title, mode='bootstrap', 
+                         colors=['red', 'blue', 'green', 'orange'],
+                         plot_dir='tmp.png'):
+    methods = list(eval_dict.keys())
+    ax = plt.gca()
+    graphic_list = []
+    for i, method in enumerate(methods):
+        data = eval_dict[method]
+        _, p2 = _tsplot(ax, np.array(time_steps), data, mode, label=method, color=colors[i])
+        graphic_list.append(p2)
+    ax.legend(graphic_list, methods)
+    ax.set_title(title)
+    ax.set_xlabel('Timestamp')
+    ax.set_ylabel('Evaluation cost')
+    plt.savefig('output/' + plot_dir)
+    plt.show()

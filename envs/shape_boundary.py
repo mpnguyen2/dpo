@@ -15,7 +15,7 @@ class ShapeBoundary(BBO):
         "render_fps": 15,
     }
 
-    def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=20):
+    def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=20, render_mode='human'):
         # Superclass setup
         super(ShapeBoundary, self).__init__(naive, step_size, max_num_step)
 
@@ -33,7 +33,7 @@ class ShapeBoundary(BBO):
         self.verts = None
 
         # Rendering
-        self.render_mode = 'human'
+        self.render_mode = render_mode
         self.screen_width = 600
         self.screen_height = 600
         self.screen = None
@@ -108,6 +108,9 @@ class ShapeBoundary(BBO):
             # x-coord
             self.state[0:n] = 0.8*self.rng.random(n) + 0.2
             self.state[n:2*n] = -0.8*self.rng.random(n) - 0.2
+            #self.state[0:n] = 0.8*np.random.rand(n) + 0.2
+            #self.state[n:2*n] = -0.8*np.random.rand(n) - 0.2
+
             # y-coord
             self.state[2*n:3*n] = np.arange(n)/n
             self.state[3*n:4*n] = np.arange(n)/n
@@ -117,7 +120,7 @@ class ShapeBoundary(BBO):
         cs = CubicSpline(np.linspace(0,1,self.num_coef), self.state.reshape(2, self.num_coef).T)
         coords = cs(self.ts)
         coords = coords/np.max(np.abs(coords))*100 + 300
-        self.verts = sorted(list(zip(coords[:,0], coords[:,1])))
+        self.verts = list(zip(coords[:,0], coords[:,1]))
         return np.array(self.state)
     
     def render(self):

@@ -1,8 +1,11 @@
 import os, sys
+import numpy as np
 import pandas as pd
 import torch
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import PPO, SAC, DDPG
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 from sb3_contrib import TRPO
+from sb3_contrib import CrossQ, TQC
 
 # current directory
 cur_dir = os.path.dirname(os.path.abspath(__file__))
@@ -57,6 +60,17 @@ def train_benchmark_model(method, gamma, env_name, total_samples, common_dims=[]
         model = PPO("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
     elif method == 'SAC':
         model = SAC("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
+    elif method == 'DDPG':
+        n_actions = env.action_space.shape[-1]
+        scale = env.max_act
+        #action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=(scale**2) * np.ones(n_actions))
+        action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=(scale**2)*np.ones(n_actions))
+        model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1)
+    elif method == 'CrossQ':
+        model = CrossQ("MlpPolicy", env, learning_rate=lr, gamma=gamma, policy_kwargs=policy_kwargs, verbose=1)
+    elif method == 'TQC':
+        policy_kwargs.update({'n_critics': 5, 'n_quantiles': 10})
+        model = TQC("MlpPolicy", env, top_quantiles_to_drop_per_net=2, verbose=1, policy_kwargs=policy_kwargs)
     model.device = DEVICE
 
     # Train and save model with SB3.
@@ -65,16 +79,21 @@ def train_benchmark_model(method, gamma, env_name, total_samples, common_dims=[]
     model.save(model_path)
 
 def _load_benchmark_model(method, model_path):
-    if method == 'TRPO':
+    if 'TRPO' in method:
         model = TRPO.load(model_path)
-    elif method == 'PPO':
+    elif 'PPO' in method:
         model = PPO.load(model_path)
-    elif method == 'SAC':
+    elif 'SAC' in method:
         model = SAC.load(model_path)
+    elif 'DDPG' in method:
+        model = DDPG.load(model_path)
+    elif 'CrossQ' in method:
+        model = CrossQ.load(model_path)
+    elif 'TQC' in method:
+        model = TQC.load(model_path)
     return model
 
-def setup_benchmark_model(method, env, env_name):
-    model_path = "benchmarks/models/" + env_name + '_' + method
+def setup_benchmark_model(method, env, model_path):
     model = _load_benchmark_model(method, model_path)
     model.set_env(env)
 
