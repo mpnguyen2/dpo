@@ -65,16 +65,7 @@ class Molecule(BBO):
     def reset_at(self, mode='random'):
         if mode == 'random':
             self.state = self.reset_scale*(self.rng.random(self.state_dim)-.5)
-        elif mode == 'test':
-            not_ok = True
-            while not_ok:
-                self.discount = 1.0
-                self.state = self.reset_scale*(self.rng.random(self.state_dim)-.5)
-                for k in range(self.num_residue):
-                    self.pose.set_phi(k+1, self.state[2*k]) 
-                    self.pose.set_psi(k+1, self.state[2*k+1])
-                val = self.sfxn(self.pose)
-                not_ok = val < 1800
+
         return np.array(self.state)
 
     def render(self):

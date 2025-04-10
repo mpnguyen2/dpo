@@ -12,15 +12,15 @@ DEFAULT_GAMMA = 0.99
 ALL_COLORS = ["red", "blue", "green", "orange", "purple", "cyan", "magenta", "brown", "pink", "olive", "teal", "gold", "navy"]
 
 
-seeds = [42] #, 75, 105, 122, 137, 203, 381, 411, 437, 479]
+seeds = [42, 75, 105, 122, 137, 203, 381, 411, 437, 479]
 
 # Datasets (columns)
-datasets = ['molecule'] #['shape_boundary', 'shape', 'molecule']
+datasets = ['shape_boundary', 'shape', 'molecule']
 
 # Algo (rows): 1 DPO, 5 benchmark, 5 naive benchmark
-algorithms = ['DPO_zero_order'] #,
-              #'TRPO', 'PPO', 'SAC', 'DDPG', 'CrossQ', 'TQC',
-              #'S-TRPO', 'S-PPO', 'S-SAC', 'S-DDPG', 'S-CrossQ', 'S-TQC']
+algorithms = ['DPO_zero_order',
+              'TRPO', 'PPO', 'SAC', 'DDPG', 'CrossQ', 'TQC',
+              'S-TRPO', 'S-PPO', 'S-SAC', 'S-DDPG', 'S-CrossQ', 'S-TQC']
 
 # Gamma values
 env_to_gamma = {

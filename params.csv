@@ -1,4 +1,4 @@
 env_name,rate,num_traj,step_size,lr,batch_size,log_interval
 shape,2.00E+01,128,1.00E-02,1.00E-03,32,1000
-shape_boundary,1.00E+00,128,1.00E-02,1.00E-03,32,1000
-molecule,2.50E+01,128,1.00E-02,1.00E-03,64,1000
+shape_boundary,9.00E-01,128,1.00E-02,1.00E-03,32,1000
+molecule,5.00E+01,128,1.00E-01,1.00E-03,32,1000
