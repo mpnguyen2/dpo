@@ -136,7 +136,7 @@ dmypy.json
 *.npy
 
 # Logging and models
-models/
-benchmarks/models/
-benchmarks/logs/
+#models/
+#benchmarks/models/
+#benchmarks/logs/
 logs/

@@ -100,7 +100,8 @@ def setup_dpo_model(method, env, env_name):
     state_dim = env.state_dim
     main_net = setup_main_net(env_name, zero_order, state_dim)
     path = 'models/' + env_name + '_' + method + '.pth'
-    main_net.load_state_dict(torch.load(path))
+    #main_net.load_state_dict(torch.load(path))
+    main_net.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
     main_net.to(DEVICE)
     model = Policy(zero_order, main_net, rate, step_size)
 
