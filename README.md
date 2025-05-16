@@ -51,8 +51,8 @@ dpo/
 
 ## Benchmarking Results
 ### Sample Size
-- ~100,000 steps for Materials and Topological Deformation  
-- 5,000 steps for Molecular Dynamics due to expensive evaluations
+- ~100,000 steps for Surface modeling and Grid-based modeling
+- 5,000 steps for Molecular dynamics due to expensive evaluations
 
 ## 🔁 Reproducing Benchmarks
 
