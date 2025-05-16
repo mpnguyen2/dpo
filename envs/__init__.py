@@ -1,3 +1,3 @@
-from envs.shape_boundary import ShapeBoundary
-from envs.shape import Shape
+from envs.surface import Surface
+from envs.grid import Grid
 from envs.molecule import Molecule

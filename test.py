@@ -1,33 +1,44 @@
 import numpy as np
 import imageio
 
-# Run num_traj trajectories using policy given by model on env.
-def test_model_through_vals(seeds, env, model, num_traj, num_step_per_traj,
-                                 benchmark_model=False):
-    # List of all vals across seed & trajectory of shape (seed, num_traj, num_step_per_traj).
-    all_vals = [[] for _ in range(len(seeds))]
-    for i, seed in enumerate(seeds):
-        env.rng = np.random.default_rng(seed=seed)
-        for _ in range(num_traj):
-            obs, _ = env.reset() # obs same as state in our case.
-            num_iteration = 0
-            action = np.zeros(obs.shape)
-            vals_cur_traj = []
+
+def test_model_through_vals(seeds, env, model, obs_dict, num_step_per_traj, benchmark_model=False):
+    num_traj = len(next(iter(obs_dict.values())))  # get number of traj from any seed
+
+    all_vals = []
+
+    for seed in seeds:
+        env.rng = np.random.default_rng(seed)
+        seed_vals = []
+
+        for obs in obs_dict[seed]:
+            # Get initial observation cost
+            env.reset()
+            env.state = obs.copy()
+            prev_action = np.zeros_like(obs)
+            obs, reward, done, _, _ = env.step(prev_action)
+            cur_vals = [env.get_val(reward, prev_action)]
+
+            # Reset again and simulate trajectory
+            env.reset()
+            env.state = obs.copy()
             for _ in range(num_step_per_traj):
                 if benchmark_model:
                     action, _ = model.predict(obs)
                 else:
-                    action = model.get_action(obs, action)
+                    action = model.get_action(obs, prev_action)
                 obs, reward, done, _, _ = env.step(action)
                 val = env.get_val(reward, action)
-                vals_cur_traj.append(val)
-                num_iteration += 1
+                cur_vals.append(val)
+                prev_action = action
                 if done:
                     break
-            all_vals[i].append(np.array(vals_cur_traj))
-    all_vals = np.array(all_vals)
+            seed_vals.append(np.array(cur_vals))
 
-    return all_vals.reshape(-1, num_step_per_traj)
+        all_vals.append(seed_vals)
+
+    return np.array(all_vals).reshape(len(seeds) * num_traj, num_step_per_traj+1)
+
 
 # Visualize a particular trajectories from given model's policy.
 def visualize(env, model, num_step=100, benchmark_model=False,

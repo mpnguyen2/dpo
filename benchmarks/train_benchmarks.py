@@ -5,23 +5,23 @@ import time
 
 
 methods = ['TQC', 'CrossQ', 'TRPO', 'PPO', 'SAC']
-env_names = ['shape_boundary', 'naive_shape_boundary', 'shape', 'naive_shape', 'molecule', 'naive_molecule']
+env_names = ['surface', 'naive_surface', 'grid', 'naive_grid', 'molecule', 'naive_molecule']
 
 DEFAULT_GAMMA = 0.99
 
 # Train basic params
 total_samples_dict = {
-            'shape_boundary': 1e5,
-            'naive_shape_boundary': 1e5,
-            'shape': 1e5,
-            'naive_shape': 1e5,
+            'surface': 1e5,
+            'naive_surface': 1e5,
+            'grid': 1e5,
+            'naive_grid': 1e5,
             'molecule': 5000,
             'naive_molecule': 5000
             }
 
 env_to_gammas_dict = {
-    'shape_boundary': [0.99],
-    'shape': [0.81],
+    'surface': [0.99],
+    'grid': [0.81],
     'molecule': [0.0067],
 }
 

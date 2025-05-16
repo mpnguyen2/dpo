@@ -9,7 +9,7 @@ from envs.bbo import BBO
 
 MAX_ACT = 1e4
 
-class ShapeBoundary(BBO):
+class Surface(BBO):
     metadata = {
         "render_modes": ["human", "rgb_array"],
         "render_fps": 15,
@@ -17,7 +17,7 @@ class ShapeBoundary(BBO):
 
     def __init__(self, naive=False, step_size=1e-2, state_dim=16, max_num_step=20, render_mode='human'):
         # Superclass setup
-        super(ShapeBoundary, self).__init__(naive, step_size, max_num_step)
+        super(Surface, self).__init__(naive, step_size, max_num_step)
 
         # State and action info
         self.state_dim = state_dim

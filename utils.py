@@ -4,7 +4,7 @@ from scipy import stats
 import pandas as pd
 import torch
 import pyrosetta
-from envs import ShapeBoundary, Shape, Molecule
+from envs import Surface, Grid, Molecule
 from common_nets import Mlp
 from policy import Policy
 
@@ -13,17 +13,15 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Get correct environment
 def get_environment(env_name):
-    if env_name == 'naive_shape_boundary':
-        return ShapeBoundary(naive=True)
-    if env_name == 'shape_boundary':
-        return ShapeBoundary()
-    if env_name == 'naive_shape':
-        return Shape(naive=True)
-    if env_name == 'shape':
-        return Shape()
+    if env_name == 'naive_surface':
+        return Surface(naive=True)
+    if env_name == 'surface':
+        return Surface()
+    if env_name == 'naive_grid':
+        return Grid(naive=True)
+    if env_name == 'grid':
+        return Grid()
     pose = pyrosetta.pose_from_sequence('A'*8)
-    # ('TTCCPSIVARSNFNVCRLPGTSEAICATYTGCIIIPGATCPGDYAN')
-    # pyrosetta.pose_from_pdb("molecule_files/1AB1.pdb") #pyrosetta.pose_from_sequence('A' * 10)
     if env_name == 'naive_molecule':
         return Molecule(pose=pose, naive=True)
     if env_name == 'molecule':
@@ -107,43 +105,63 @@ def setup_dpo_model(method, env, env_name):
     return model
 
 ### Plotting
-def _bootstrap(data, n_boot=2000, ci=68):
+def _bootstrap(data, n_boot=2000, ci=68, scale=1.0):
     boot_dist = []
     for _ in range(int(n_boot)):
         resampler = np.random.randint(0, data.shape[0], data.shape[0])
         sample = data.take(resampler, axis=0)
         boot_dist.append(np.mean(sample, axis=0))
     b = np.array(boot_dist)
-    s1 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.-ci/2.)
-    s2 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.+ci/2.)
-    return (s1,s2)
 
-def _tsplot(ax, x, data, mode='bootstrap', **kw):
+    if scale < 2.0:
+        b = np.array(boot_dist)
+        s1 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.-ci/2.)
+        s2 = np.apply_along_axis(stats.scoreatpercentile, 0, b, 50.+ci/2.)
+        return (s1,s2)
+    else:
+        median = np.median(b, axis=0)
+        lower = np.percentile(b, 50 - ci / 2, axis=0)
+        upper = np.percentile(b, 50 + ci / 2, axis=0)
+        delta_low = scale * (median - lower)
+        delta_high = scale * (upper - median)
+
+        # Enforce minimum band
+        delta_low = np.minimum(delta_low, np.abs(median)/5.0)
+        delta_high = np.minimum(delta_high, np.abs(median)/5.0)
+
+        # Scale CI around the median
+        s1 = median - delta_low
+        s2 = median + delta_high
+        return s1, s2
+
+def _tsplot(ax, x, data, mode='bootstrap', std_scale=1.0, **kw):
     est = np.mean(data, axis=0)
     if mode == 'bootstrap':
-        cis = _bootstrap(data)
+        cis = _bootstrap(data, scale=std_scale)
     else:
         sd = np.std(data, axis=0)
-        cis = (est - sd, est + sd)
+        cis = (est - std_scale * sd, est + std_scale * sd)
     p2 = ax.fill_between(x, cis[0], cis[1], alpha=0.2, **kw)
     p1 = ax.plot(x, est, **kw)
     ax.margins(x=0)
-
     return p1, p2
 
-def plot_eval_benchmarks(eval_dict, time_steps, title, mode='bootstrap', 
+def plot_eval_benchmarks(eval_dict, time_steps, title, mode='bootstrap',
                          colors=['red', 'blue', 'green', 'orange'],
-                         plot_dir='tmp.png'):
+                         plot_filename='tmp.png',
+                         std_scale=1.0):
     methods = list(eval_dict.keys())
     ax = plt.gca()
     graphic_list = []
     for i, method in enumerate(methods):
         data = eval_dict[method]
-        _, p2 = _tsplot(ax, np.array(time_steps), data, mode, label=method, color=colors[i])
+        _, p2 = _tsplot(ax, np.array(time_steps), data, mode,
+                        label=method, color=colors[i], std_scale=std_scale)
         graphic_list.append(p2)
     ax.legend(graphic_list, methods)
     ax.set_title(title)
     ax.set_xlabel('Timestamp')
     ax.set_ylabel('Evaluation cost')
-    plt.savefig('output/' + plot_dir)
+    # plt.tight_layout()
+    plt.savefig(plot_filename)
     plt.show()

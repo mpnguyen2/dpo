@@ -8,12 +8,12 @@ from envs.bbo import BBO
 from collections import namedtuple
 ImgDim = namedtuple('ImgDim', 'width height')
 
-class Shape(BBO):
+class Grid(BBO):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, naive=False, step_size=1e-2, state_dim=64, max_num_step=20):
         # Superclass setup
-        super(Shape, self).__init__(naive, step_size, max_num_step)
+        super(Grid, self).__init__(naive, step_size, max_num_step)
 
         # State and action info
         self.state_dim = state_dim
@@ -35,7 +35,7 @@ class Shape(BBO):
         self.num_step += 1
 
         # Calculate value
-        area, peri = geometry_info(self.state, self.xk, self.yk, self.xg, self.yg)
+        area, peri = info(self.state, self.xk, self.yk, self.xg, self.yg)
         done = (area == 0 or peri == 0)
         if not done:
             val = peri/np.sqrt(area)
@@ -93,7 +93,7 @@ def spline_interp(z, xk, yk, xg, yg):
     _, thresh_img = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY)
     return thresh_img
 
-def geometry_info_from_img(img):
+def info_from_img(img):
     # Extract contours and calculate perimeter/area   
     contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     area = 0; peri = 0
@@ -103,6 +103,6 @@ def geometry_info_from_img(img):
     
     return area, peri
 
-def geometry_info(z, xk, yk, xg, yg):
+def info(z, xk, yk, xg, yg):
     img = spline_interp(z, xk, yk, xg, yg)
-    return geometry_info_from_img(img)
+    return info_from_img(img)
